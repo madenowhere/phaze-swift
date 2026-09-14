@@ -23,8 +23,9 @@ public final class PhazeRouter {
     /// The page a `WebView` shows.
     public let page: WebPage
 
-    /// Serves `dist` at `<scheme>://localhost` and answers the page's `drag()` from
-    /// `@madenowhere/phaze-native/swift`. Load the app with `page.load(_:)`.
+    /// Serves `dist` at `<scheme>://localhost` and drags the window from the page's
+    /// `[data-tauri-drag-region]`, the attribute Tauri's shell honours, so markup moves between
+    /// shells. Load the app with `page.load(_:)`.
     public init(dist: URL, scheme: String = "app") {
         guard let urlScheme = URLScheme(scheme) else {
             preconditionFailure("PhazeRouter: '\(scheme)' is not a valid URL scheme")
@@ -32,7 +33,16 @@ public final class PhazeRouter {
         var configuration = WebPage.Configuration()
         configuration.urlSchemeHandlers[urlScheme] = DistHandler(root: dist, origin: "\(scheme)://localhost")
         #if os(macOS)
+        // A primary-button mousedown inside `[data-tauri-drag-region]` posts `drag`; the shell
+        // runs AppKit's window drag with that event.
         configuration.userContentController.add(DragHandler(), name: "drag")
+        configuration.userContentController.addUserScript(WKUserScript(source: """
+            addEventListener('mousedown', (e) => {
+              if (e.button !== 0 || !(e.target instanceof Element)) return
+              if (!e.target.closest('[data-tauri-drag-region]') || e.target.closest('[data-no-drag]')) return
+              window.webkit.messageHandlers.drag.postMessage('drag')
+            }, true)
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         #endif
         page = WebPage(configuration: configuration)
     }
