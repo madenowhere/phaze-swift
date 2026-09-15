@@ -26,12 +26,20 @@ public final class PhazeRouter {
     /// Serves `dist` at `<scheme>://localhost` and drags the window from the page's
     /// `[data-tauri-drag-region]`, the attribute Tauri's shell honours, so markup moves between
     /// shells. Load the app with `page.load(_:)`.
-    public init(dist: URL, scheme: String = "app") {
+    ///
+    /// `api` is the origin the app's Phaze Transport calls are forwarded to — the page keeps
+    /// calling `/transport/*` and `/api/*` on its own origin, and the shell carries them to the
+    /// cloud with its own credentials, the session cookie the API sets living in this process's
+    /// cookie store (see `APIForward`). Without it those paths are a 404, like any other miss.
+    public init(dist: URL, scheme: String = "app", api: URL? = nil) {
         guard let urlScheme = URLScheme(scheme) else {
             preconditionFailure("PhazeRouter: '\(scheme)' is not a valid URL scheme")
         }
+        let origin = "\(scheme)://localhost"
         var configuration = WebPage.Configuration()
-        configuration.urlSchemeHandlers[urlScheme] = DistHandler(root: dist, origin: "\(scheme)://localhost")
+        configuration.urlSchemeHandlers[urlScheme] = DistHandler(
+            root: dist, origin: origin, forward: api.map { APIForward(origin: $0, pageOrigin: origin) }
+        )
         #if os(macOS)
         // A primary-button mousedown inside `[data-tauri-drag-region]` posts `drag`; the shell
         // runs AppKit's window drag with that event.

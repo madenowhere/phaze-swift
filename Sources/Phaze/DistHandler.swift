@@ -5,13 +5,18 @@ import WebKit
 /// Serves the app's build directory. A route's path resolves to its prerendered
 /// `<route>/index.html`, anything else to the file itself, and a miss is a loud 404. Responses
 /// carry the exact origin as `Access-Control-Allow-Origin`, because the page's module scripts
-/// load in CORS mode.
+/// load in CORS mode. With an API origin, the API's namespace — `/transport/*` and `/api/*` —
+/// is forwarded there instead (`APIForward`), with the shell's credentials.
 struct DistHandler: URLSchemeHandler {
     let root: URL
     let origin: String
+    let forward: APIForward?
 
     func reply(for request: URLRequest) -> AsyncThrowingStream<URLSchemeTaskResult, any Error> {
-        AsyncThrowingStream { continuation in
+        if let forward, let path = request.url?.path(percentEncoded: false), APIForward.isAPI(path) {
+            return forward.reply(for: request)
+        }
+        return AsyncThrowingStream { continuation in
             guard let url = request.url else {
                 continuation.finish(throwing: URLError(.badURL))
                 return
