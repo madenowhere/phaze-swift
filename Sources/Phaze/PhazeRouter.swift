@@ -35,11 +35,15 @@ public final class PhazeRouter {
     /// cloud with its own credentials, the session cookie the API sets living in this process's
     /// cookie store (see `APIForward`). Without it those paths are a 404, like any other miss.
     ///
+    /// `views` is the app's own worker — the origin that serves the views not shipped in `dist`.
+    /// A document or asset the directory does not hold is requested there the same way, with the
+    /// same credentials, so the worker's guard sees the app's session. Without it a miss is a 404.
+    ///
     /// The page navigates only within its own origin, plus any origin in `allow` — the app's dev
     /// server under `phaze native dev`. A link anywhere else opens in the user's browser, and any
     /// other navigation there is refused: the page is the app, not a browser, and the wry shell
     /// keeps the same rule with its navigation handler.
-    public init(dist: URL, scheme: String = "app", api: URL? = nil, allow: [URL] = []) {
+    public init(dist: URL, scheme: String = "app", api: URL? = nil, views: URL? = nil, allow: [URL] = []) {
         guard let urlScheme = URLScheme(scheme) else {
             preconditionFailure("PhazeRouter: '\(scheme)' is not a valid URL scheme")
         }
@@ -47,7 +51,9 @@ public final class PhazeRouter {
         let allowlist = NavigationAllowlist(origins: Set([origin] + allow.compactMap(NavigationAllowlist.origin)))
         var configuration = WebPage.Configuration()
         configuration.urlSchemeHandlers[urlScheme] = DistHandler(
-            root: dist, origin: origin, forward: api.map { APIForward(origin: $0, pageOrigin: origin) }
+            root: dist, origin: origin,
+            forward: api.map { APIForward(origin: $0, pageOrigin: origin) },
+            views: views.map { APIForward(origin: $0, pageOrigin: origin) }
         )
         #if os(macOS)
         // A primary-button mousedown inside `[data-tauri-drag-region]` posts `drag`; the shell

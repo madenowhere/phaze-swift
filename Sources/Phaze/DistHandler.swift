@@ -2,19 +2,26 @@ import Foundation
 import UniformTypeIdentifiers
 import WebKit
 
-/// Serves the app's build directory. A route's path resolves to its prerendered
-/// `<route>/index.html`, anything else to the file itself, and a miss is a loud 404. Responses
-/// carry the exact origin as `Access-Control-Allow-Origin`, because the page's module scripts
-/// load in CORS mode. With an API origin, the API's namespace — `/transport/*` and `/api/*` —
-/// is forwarded there instead (`APIForward`), with the shell's credentials.
+/// Serves the app's shipped directory — the views marked `artifact: true` and the assets. A
+/// route's path resolves to its document, `<route>/index.html`, anything else to the file itself.
+/// Responses carry the exact origin as `Access-Control-Allow-Origin`, because the page's module
+/// scripts load in CORS mode. With an API origin, the API's namespace — `/transport/*` and
+/// `/api/*` — is forwarded there instead (`APIForward`), with the shell's credentials. With the
+/// app's own worker (`views`), anything the directory does not hold — a view the server serves,
+/// an asset of its build — is requested there the same way, with the same credentials, so the
+/// worker's guard sees the app's session; without one a miss is a loud 404.
 struct DistHandler: URLSchemeHandler {
     let root: URL
     let origin: String
     let forward: APIForward?
+    let views: APIForward?
 
     func reply(for request: URLRequest) -> AsyncThrowingStream<URLSchemeTaskResult, any Error> {
         if let forward, let path = request.url?.path(percentEncoded: false), APIForward.isAPI(path) {
             return forward.reply(for: request)
+        }
+        if let views, let path = request.url?.path(percentEncoded: false), resolve(path) == nil {
+            return views.reply(for: request)
         }
         return AsyncThrowingStream { continuation in
             guard let url = request.url else {
