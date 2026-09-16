@@ -1,3 +1,6 @@
+#if os(macOS)
+import AppKit
+#endif
 import SwiftUI
 import WebKit
 
@@ -31,11 +34,17 @@ public final class PhazeRouter {
     /// calling `/transport/*` and `/api/*` on its own origin, and the shell carries them to the
     /// cloud with its own credentials, the session cookie the API sets living in this process's
     /// cookie store (see `APIForward`). Without it those paths are a 404, like any other miss.
-    public init(dist: URL, scheme: String = "app", api: URL? = nil) {
+    ///
+    /// The page navigates only within its own origin, plus any origin in `allow` — the app's dev
+    /// server under `phaze native dev`. A link anywhere else opens in the user's browser, and any
+    /// other navigation there is refused: the page is the app, not a browser, and the wry shell
+    /// keeps the same rule with its navigation handler.
+    public init(dist: URL, scheme: String = "app", api: URL? = nil, allow: [URL] = []) {
         guard let urlScheme = URLScheme(scheme) else {
             preconditionFailure("PhazeRouter: '\(scheme)' is not a valid URL scheme")
         }
         let origin = "\(scheme)://localhost"
+        let allowlist = NavigationAllowlist(origins: Set([origin] + allow.compactMap(NavigationAllowlist.origin)))
         var configuration = WebPage.Configuration()
         configuration.urlSchemeHandlers[urlScheme] = DistHandler(
             root: dist, origin: origin, forward: api.map { APIForward(origin: $0, pageOrigin: origin) }
@@ -52,7 +61,36 @@ public final class PhazeRouter {
             }, true)
             """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         #endif
-        page = WebPage(configuration: configuration)
+        page = WebPage(configuration: configuration, navigationDecider: allowlist)
+    }
+
+    /// Where the page may go: its own origin and the origins the app named. A link elsewhere is
+    /// handed to the system browser; anything else — a script's redirect, a form, a frame — is
+    /// refused and said so. `about:` is the empty page WebKit starts from.
+    @MainActor
+    struct NavigationAllowlist: WebPage.NavigationDeciding {
+        let origins: Set<String>
+
+        func decidePolicy(for action: WebPage.NavigationAction, preferences: inout WebPage.NavigationPreferences) async -> WKNavigationActionPolicy {
+            guard let url = action.request.url else { return .cancel }
+            if url.scheme == "about" || origins.contains(Self.origin(of: url) ?? "") {
+                return .allow
+            }
+            #if os(macOS)
+            if action.navigationType == .linkActivated, let scheme = url.scheme, scheme == "http" || scheme == "https" {
+                NSWorkspace.shared.open(url)
+                return .cancel
+            }
+            #endif
+            print("phaze: refused navigation to \(url.absoluteString)")
+            return .cancel
+        }
+
+        /// `scheme://host[:port]`, the part a same-origin check compares.
+        static func origin(of url: URL) -> String? {
+            guard let scheme = url.scheme, let host = url.host() else { return nil }
+            return url.port.map { "\(scheme)://\(host):\($0)" } ?? "\(scheme)://\(host)"
+        }
     }
 
     /// The route on screen, or `nil` before the first load. Reading it follows `WebPage.url`,
