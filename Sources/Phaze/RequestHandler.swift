@@ -10,7 +10,7 @@ import WebKit
 /// app's own worker (`views`), anything the directory does not hold — a view the server serves,
 /// an asset of its build — is requested there the same way, with the same credentials, so the
 /// worker's guard sees the app's session; without one a miss is a loud 404.
-struct DistHandler: URLSchemeHandler {
+struct RequestHandler: URLSchemeHandler {
     let root: URL
     let origin: String
     let forward: APIForward?

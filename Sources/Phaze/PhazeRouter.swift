@@ -50,7 +50,7 @@ public final class PhazeRouter {
         let origin = "\(scheme)://localhost"
         let allowlist = NavigationAllowlist(origins: Set([origin] + allow.compactMap(NavigationAllowlist.origin)))
         var configuration = WebPage.Configuration()
-        configuration.urlSchemeHandlers[urlScheme] = DistHandler(
+        configuration.urlSchemeHandlers[urlScheme] = RequestHandler(
             root: dist, origin: origin,
             forward: api.map { APIForward(origin: $0, pageOrigin: origin) },
             views: views.map { APIForward(origin: $0, pageOrigin: origin) }
