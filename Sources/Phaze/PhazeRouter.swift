@@ -57,15 +57,16 @@ public final class PhazeRouter {
         )
         #if os(macOS)
         // A primary-button mousedown inside `[data-tauri-drag-region]` posts `drag`; the shell
-        // runs AppKit's window drag with that event.
-        configuration.userContentController.add(DragHandler(), name: "drag")
+        // runs AppKit's window drag with that event. The handler and its script live in the client
+        // world, so the page's own scripts can neither post `drag` nor alter the listener.
+        configuration.userContentController.add(DragHandler(), contentWorld: .defaultClient, name: "drag")
         configuration.userContentController.addUserScript(WKUserScript(source: """
             addEventListener('mousedown', (e) => {
               if (e.button !== 0 || !(e.target instanceof Element)) return
               if (!e.target.closest('[data-tauri-drag-region]') || e.target.closest('[data-no-drag]')) return
               window.webkit.messageHandlers.drag.postMessage('drag')
             }, true)
-            """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .defaultClient))
         #endif
         page = WebPage(configuration: configuration, navigationDecider: allowlist)
     }
