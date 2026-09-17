@@ -1,26 +1,26 @@
 import Foundation
 import WebKit
 
-/// The shell's side of Phaze Transport. The page's calls stay relative to its own origin —
+/// The shell's side of Phaze Transport. The view's calls stay relative to its own origin —
 /// `/transport/action/<Group>/<action>`, a stream, a direct `/api/*` fence — and land here, on
 /// the scheme handler; this forwards each to the API origin and streams the answer back as the
 /// scheme task's results. Identity rides with the shell: the cookies the API sets (the session,
 /// once signed in) live in this process's cookie store — `HTTPCookieStorage.shared`, the app's
 /// own, sandboxed, with expiry, `Secure` and domain scoping honoured by the system — and are sent
-/// on every later forward. The page never holds a credential.
+/// on every later forward. The view never holds a credential.
 ///
-/// Bodies are handed to the page as they arrive, so a `transport: sse` stream's frames reach it
-/// as frames. `Content-Encoding` never reaches the page (URLSession has already decoded, and
+/// Bodies are handed to the view as they arrive, so a `transport: sse` stream's frames reach it
+/// as frames. `Content-Encoding` never reaches the view (URLSession has already decoded, and
 /// WebKit hands a scheme-handler body to the parser as given); `Set-Cookie` never does either.
 struct APIForward: Sendable {
     let origin: URL
-    let pageOrigin: String
+    let viewOrigin: String
     private let session: URLSession
     private let delegate: ForwardDelegate
 
-    init(origin: URL, pageOrigin: String) {
+    init(origin: URL, viewOrigin: String) {
         self.origin = origin
-        self.pageOrigin = pageOrigin
+        self.viewOrigin = viewOrigin
         let config = URLSessionConfiguration.default
         // Idle time between bytes, not a total: a held stream is kept alive by its pings.
         config.timeoutIntervalForRequest = 120
@@ -28,7 +28,7 @@ struct APIForward: Sendable {
         // document (there is none — this is not a browser), sent on every later forward.
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
-        delegate = ForwardDelegate(pageOrigin: pageOrigin)
+        delegate = ForwardDelegate(viewOrigin: viewOrigin)
         session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }
 
@@ -38,7 +38,7 @@ struct APIForward: Sendable {
         path.hasPrefix("/transport/") || path.hasPrefix("/api/")
     }
 
-    /// Request headers that describe the page's origin rather than the request, or that WebKit
+    /// Request headers that describe the view's origin rather than the request, or that WebKit
     /// would not send anyway; the rest (`Content-Type`, `X-Phaze-Edge`, `Accept`) pass through.
     private static let droppedRequestHeaders: Set<String> = ["host", "origin", "referer", "cookie"]
 
@@ -67,7 +67,7 @@ struct APIForward: Sendable {
                 print("phaze: forward \(method) \(url.path(percentEncoded: false)) — no request body reached the handler")
             }
             let task = session.dataTask(with: out)
-            delegate.attach(task, continuation: continuation, pageURL: url)
+            delegate.attach(task, continuation: continuation, viewURL: url)
             continuation.onTermination = { _ in task.cancel() }
             task.resume()
         }
@@ -89,30 +89,30 @@ struct APIForward: Sendable {
     }
 }
 
-/// One delegate for every forwarded task: each task's scheme-task continuation and page URL are
+/// One delegate for every forwarded task: each task's scheme-task continuation and view URL are
 /// kept by task id, and URLSession's calls — response, each data chunk, completion — become the
 /// scheme task's results. Serialised by URLSession's own delegate queue; the map is locked for
 /// the attach that happens on the caller's side.
 final class ForwardDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     fileprivate typealias Continuation = AsyncThrowingStream<URLSchemeTaskResult, any Error>.Continuation
 
-    let pageOrigin: String
+    let viewOrigin: String
     /// `PHAZE_LOG=1` in the environment: one line per forward — method, path, status, bytes.
     private let trace = ProcessInfo.processInfo.environment["PHAZE_LOG"] != nil
     private let lock = NSLock()
-    private var tasks: [Int: (continuation: Continuation, pageURL: URL)] = [:]
+    private var tasks: [Int: (continuation: Continuation, viewURL: URL)] = [:]
 
-    init(pageOrigin: String) {
-        self.pageOrigin = pageOrigin
+    init(viewOrigin: String) {
+        self.viewOrigin = viewOrigin
     }
 
-    fileprivate func attach(_ task: URLSessionTask, continuation: Continuation, pageURL: URL) {
+    fileprivate func attach(_ task: URLSessionTask, continuation: Continuation, viewURL: URL) {
         lock.lock()
-        tasks[task.taskIdentifier] = (continuation, pageURL)
+        tasks[task.taskIdentifier] = (continuation, viewURL)
         lock.unlock()
     }
 
-    private func entry(for task: URLSessionTask) -> (continuation: Continuation, pageURL: URL)? {
+    private func entry(for task: URLSessionTask) -> (continuation: Continuation, viewURL: URL)? {
         lock.lock()
         defer { lock.unlock() }
         return tasks[task.taskIdentifier]
@@ -124,7 +124,7 @@ final class ForwardDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendab
         return tasks.removeValue(forKey: task.taskIdentifier)?.continuation
     }
 
-    /// Response headers that must not reach the page: the encoding URLSession already undid and
+    /// Response headers that must not reach the view: the encoding URLSession already undid and
     /// the length that went with it, the connection's own, and the cookies — those are the shell's.
     private static let droppedResponseHeaders: Set<String> = [
         "content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "set-cookie",
@@ -142,12 +142,12 @@ final class ForwardDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendab
             if Self.droppedResponseHeaders.contains(name.lowercased()) { continue }
             headers[name] = value
         }
-        // The page's module scripts and fetches run in CORS mode against the exact origin.
-        headers["Access-Control-Allow-Origin"] = pageOrigin
-        let forPage = HTTPURLResponse(
-            url: entry.pageURL, statusCode: http?.statusCode ?? 200, httpVersion: "HTTP/1.1", headerFields: headers
+        // The view's module scripts and fetches run in CORS mode against the exact origin.
+        headers["Access-Control-Allow-Origin"] = viewOrigin
+        let forView = HTTPURLResponse(
+            url: entry.viewURL, statusCode: http?.statusCode ?? 200, httpVersion: "HTTP/1.1", headerFields: headers
         )!
-        entry.continuation.yield(.response(forPage))
+        entry.continuation.yield(.response(forView))
         completionHandler(.allow)
     }
 

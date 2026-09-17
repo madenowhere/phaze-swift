@@ -4,7 +4,7 @@ import WebKit
 
 /// Serves the app's shipped directory — the views marked `artifact: true` and the assets. A
 /// route's path resolves to its document, `<route>/index.html`, anything else to the file itself.
-/// Responses carry the exact origin as `Access-Control-Allow-Origin`, because the page's module
+/// Responses carry the exact origin as `Access-Control-Allow-Origin`, because the view's module
 /// scripts load in CORS mode. With an API origin, the API's namespace — `/transport/*` and
 /// `/api/*` — is forwarded there instead (`APIForward`), with the shell's credentials. With the
 /// app's own worker (`views`), anything the directory does not hold — a view the server serves,
