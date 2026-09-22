@@ -51,34 +51,6 @@ public struct SoftwareKey: Signer {
     public var describe: String { "software P-256 (in-process key)" }
 }
 
-/// A P-256 key held by the Secure Enclave — non-exportable, which is what makes it a hardware
-/// credential rather than a file with better permissions. Persisted as its `dataRepresentation`,
-/// a blob only this device's enclave can use; there is no keychain item, so no entitlement is
-/// needed to keep it (measured 2026-09-15 on an unsigned binary: minted, reloaded in a new
-/// process, same public key). No user-verification gate: a gate is an access control, and an
-/// access control needs the signed bundle — so `userVerified` stays false, honestly.
-public struct EnclaveKey: Signer {
-    private let key: SecureEnclave.P256.Signing.PrivateKey
-
-    public static var isAvailable: Bool { SecureEnclave.isAvailable }
-
-    public init() throws {
-        key = try SecureEnclave.P256.Signing.PrivateKey()
-    }
-
-    public init(dataRepresentation: Data) throws {
-        key = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: dataRepresentation)
-    }
-
-    /// The blob to persist. Not the private key — usable only by this device's enclave.
-    public var dataRepresentation: Data { key.dataRepresentation }
-
-    public func publicSEC1() throws -> Data { key.publicKey.x963Representation }
-    public func signDER(_ message: Data) throws -> Data { try key.signature(for: message).derRepresentation }
-    public var userVerified: Bool { false }
-    public var describe: String { "Secure Enclave P-256" }
-}
-
 /// The three byte strings a WebAuthn assertion is, ready for the server's `verify_assertion`.
 public struct Assertion {
     public let authenticatorData: Data
