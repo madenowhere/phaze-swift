@@ -13,8 +13,8 @@ The macOS shell for a [Phaze](https://phaze.build) app, on SwiftUI's `WebView` (
 .product(name: "PhazeAuth", package: "phaze-swift"),
 ```
 
-Documentation is available to licensed users and partners: [Phaze + Swift](https://phaze.build/integrations/swift/) and [Security → Native](https://phaze.build/security/native/), access on request at partners@neuralkit.ai.
+Documentation is available to licensed users and partners: [Phaze + Swift](https://phaze.build/integrations/swift/) and [Security → Native](https://phaze.build/security/native/), access on request at [neuralkit.ai](https://neuralkit.ai).
 
 ## License
 
-PolyForm Noncommercial 1.0.0 ([LICENSE.md](LICENSE.md)). Free for noncommercial use, and for government institutions. Commercial use by written agreement: legal@neuralkit.ai. See [NOTICE](NOTICE).
+PolyForm Noncommercial 1.0.0 ([LICENSE.md](LICENSE.md)). Free for noncommercial use, and for government institutions. Commercial use by written agreement: [neuralkit.ai](https://neuralkit.ai). See [NOTICE](NOTICE).
