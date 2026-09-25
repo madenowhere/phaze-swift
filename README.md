@@ -1,4 +1,4 @@
-# PhazeSwiftUI
+# Phaze
 
 The macOS shell for a [Phaze](https://phaze.build) app, on SwiftUI's `WebView` (macOS 26). Two products:
 

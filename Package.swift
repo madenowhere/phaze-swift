@@ -1,10 +1,10 @@
 // swift-tools-version: 6.0
-// PhazeSwiftUI — phaze-native's SwiftUI WebView shell, imported as `Phaze`, and `PhazeAuth`,
+// Phaze — phaze-native's SwiftUI WebView shell, imported as `Phaze`, and `PhazeAuth`,
 // the authenticator half of phaze-auth for a shell that signs in with a machine key.
 import PackageDescription
 
 let package = Package(
-    name: "PhazeSwiftUI",
+    name: "Phaze",
     platforms: [.macOS("26.0")],
     products: [
         .library(name: "Phaze", targets: ["Phaze"]),
